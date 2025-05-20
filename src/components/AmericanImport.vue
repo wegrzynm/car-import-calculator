@@ -131,8 +131,7 @@ const handleForm = (e: Event) => {
   let vehicleValueEUR = cifEUR * (1 + dutyRate);
   let vehicleValueForTariff = vehicleValueEUR * eurRate.value;
   let dutyAmount = cifEUR * dutyRate * eurRate.value;
-  let vatBase = vehicleValueEUR * eurRate.value;
-  let vatAmount = vatBase * EurCost.value.VAT;
+  let vatAmount = (vehicleValueEUR * EurCost.value.VAT)*eurRate.value;
   let agencyFee = EurCost.value.dutyAgency;
   let tariffAmount = vehicleValueForTariff * tariffRate;
   
@@ -291,12 +290,12 @@ const currencyRatesInfo = computed(() => `USD: ${usdRate.value.toFixed(2)} PLN, 
               <span>{{ formatCurrency(calculationDetails.dutyAmount) }}</span>
             </div>
             <div class="detail-item">
-              <span>VAT (23%):</span>
+              <span>VAT (19%):</span>
               <span>{{ formatCurrency(calculationDetails.vatAmount) }}</span>
             </div>
             <div class="detail-item">
               <span>Opłata agencyjna:</span>
-              <span>{{ formatCurrency(calculationDetails.agencyFee) }}</span>
+              <span>{{ calculationDetails.agencyFee }} EUR</span>
             </div>
             <div class="detail-item">
               <span>Akcyza ({{ calculationDetails.tariffRate }}%):</span>
@@ -337,7 +336,7 @@ const currencyRatesInfo = computed(() => `USD: ${usdRate.value.toFixed(2)} PLN, 
 
 .calculator-container {
   font-family: var(--font-main);
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
   background-color: var(--green-lighter);
