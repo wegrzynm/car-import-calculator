@@ -2,8 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 
 const date = new Date();
-const usdRate = ref(4);
-const eurRate = ref(4.2);
+const usdRate = ref(4.00); // Default, will be updated
+const eurRate = ref(4.20);  // Default, will be updated
 let finalPrice = ref(0);
 let showResults = ref(false);
 let isLoading = ref(true);
@@ -47,123 +47,142 @@ const setEURRate = async () => {
 
 const UsaCost = ref({
   priceUSD: 0,
-  auctionCostUSD: 0.075,
-  transportCostUSA: 1000,
-  shippingCost: 1000,
+  auctionFeeUSD: 0, // Example: 300 USD fixed, or calculated if percentage
+  transportToPortUSA: 700, // Example: Inland transport in USA
+  oceanFreightUSD: 1200, // Example: Shipping from US port to European port
+  // auctionCostUSD: 0.075, // This seems to be a percentage, let's clarify if it's fixed or %
+                           // Assuming a fixed auction fee for now, or it can be calculated based on priceUSD
 });
 
 const EurCost = ref({
-  dutyRate: 0.1,
-  VAT: 0.19,
-  dutyAgency: 450,
+  // dutyRate is calculated based on vehicle type
+  VAT: 0.19, // Standard VAT rate in Poland
+  dutyAgencyEUR: 450, // Agency fee in EUR
 });
 
 const Vehicle = ref({
-  vehicleType: 1,
-  engineType: 1,
+  vehicleType: 1, // 1 for Car, 2 for Motorcycle, 3 for Other (e.g. Quad, Scooter)
+  engineType: 1,  // Corresponds to options in the select for excise tax
   year: date.getFullYear(),
 });
 
 const calculationDetails = ref({
+  priceWithAuctionFeeUSD: 0,
   cifUSD: 0,
   cifPLN: 0,
-  cifEUR: 0,
+  // cifEUR: 0, // Not strictly needed for final calculation if all done in PLN
   dutyRate: 0,
-  dutyAmount: 0,
-  vatAmount: 0,
-  agencyFee: 0,
+  dutyAmountPLN: 0,
+  vatAmountPLN: 0,
+  agencyFeePLN: 0,
   tariffRate: 0,
-  tariffAmount: 0,
-  shippingCostEu: 0
+  tariffAmountPLN: 0,
+  transportToPolandPLN: 0 // Transport from European port to client in Poland
 });
 
+// Helper to calculate auction fee if it's percentage based
+// For now, assuming UsaCost.auctionFeeUSD is a fixed value input by user or preset
+// If it were, e.g., 7.5% of priceUSD:
+// const getAuctionFee = () => UsaCost.value.priceUSD * 0.075;
+
+
 const calculateCIF = () => {
-  return UsaCost.value.priceUSD + (UsaCost.value.priceUSD * UsaCost.value.auctionCostUSD) + UsaCost.value.transportCostUSA + UsaCost.value.shippingCost;
+  // const auctionFee = getAuctionFee(); // Use this if auction fee is percentage
+  const auctionFee = UsaCost.value.auctionFeeUSD; // Using the fixed value for now
+  const totalCostsInUSA = UsaCost.value.priceUSD + auctionFee + UsaCost.value.transportToPortUSA;
+  return totalCostsInUSA + UsaCost.value.oceanFreightUSD;
 }
 
 const calculateDutyRate = () => {
-  let vehicleAge = date.getFullYear() - Vehicle.value.year;
-  if (vehicleAge >= 20) {
-    return 0;
+  // For US imports, duty is typically applied regardless of age unless specific exemptions exist.
+  // The 20/30 year rule for "classic" cars giving 0% duty is more of an EU specific agreement often applied to EU-origin or specific imports.
+  // Standard US vehicle import duty rates to Poland:
+  // Cars: 10%
+  // Motorcycles: 6% (or 8% depending on engine size, but 6% is common for >800cc)
+  // Trucks: 10% or 22%
+  // For simplicity, we'll stick to car/motorcycle.
+  const type = Number(Vehicle.value.vehicleType);
+  if (type === 1) { // Car
+    return 0.10;
+  } else if (type === 2) { // Motorcycle
+    return 0.06;
+  } else if (type === 3) { // "Other" like Quads etc. - often 10% or specific codes
+    return 0.10; // Defaulting to 10% for "Other" for now
   }
-  if (Vehicle.value.vehicleType == 1) {
-    return 0.1;
-  } else if (Vehicle.value.vehicleType == 2) {
-    return 0.06
-  }
-  return 0;
+  return 0.10; // Default if type is not set
 }
 
-const selectTariff = () => {
-  switch (Vehicle.value.engineType) {
-    case 1:
-      return 0.031;
-    case 2:
-    case 5:
-    case 8:
-      return 0.186;
-    case 3:
-      return 0.0155;
-    case 4:
-    case 7:
-      return 0.093;
-    case 6:
-    case 9:
-      return 0;
-    default:
-      return 0;
+const selectTariff = () => { // Excise tax rates
+  const type = Number(Vehicle.value.engineType);
+  switch (type) {
+    case 1: return 0.031; // Petrol <= 2000cc
+    case 2: return 0.186; // Petrol > 2000cc
+    case 3: return 0.0155; // Hybrid <= 2000cc
+    case 4: return 0.093; // Hybrid > 2000cc (up to 3500cc)
+    case 5: return 0.186; // Hybrid > 3500cc
+    case 6: return 0;     // PHEV <= 2000cc
+    case 7: return 0.093; // PHEV > 2000cc (up to 3500cc)
+    case 8: return 0.186; // PHEV > 3500cc
+    case 9: return 0;     // Electric
+    default: return 0;
   }
 };
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(value);
+const formatCurrency = (value: number, currency = 'PLN') => {
+  return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: currency }).format(value);
 }
 
 const handleForm = (e: Event) => {
   e.preventDefault();
   showResults.value = true;
   
-  let cif = calculateCIF();
+  let cifUSD = calculateCIF();
   let dutyRate = calculateDutyRate();
   let tariffRate = selectTariff();
   
-  // CIF from USD to PLN
-  let cifPLN = cif * usdRate.value;
-  let cifEUR = cifPLN / eurRate.value;
-  let vehicleValueEUR = cifEUR * (1 + dutyRate);
-  let vehicleValueForTariff = vehicleValueEUR * eurRate.value;
-  let dutyAmount = cifEUR * dutyRate * eurRate.value;
-  let vatAmount = (vehicleValueEUR * EurCost.value.VAT)*eurRate.value;
-  let agencyFee = EurCost.value.dutyAgency;
-  let tariffAmount = vehicleValueForTariff * tariffRate;
-  let shippingCostEu = 3500;
+  let cifPLN = cifUSD * usdRate.value;
   
-  finalPrice.value = Math.round((vehicleValueForTariff + vatAmount + agencyFee + tariffAmount + shippingCostEu) * 100) / 100;
+  let dutyAmountPLN = cifPLN * dutyRate;
+  let valueAfterDutyPLN = cifPLN + dutyAmountPLN;
   
-  // Store calculation details for display
+  let vatAmountPLN = valueAfterDutyPLN * EurCost.value.VAT;
+  let agencyFeePLN = EurCost.value.dutyAgencyEUR * eurRate.value; // Convert agency fee from EUR to PLN
+  
+  let valueForTariffPLN = valueAfterDutyPLN; // Excise tax base
+  let tariffAmountPLN = valueForTariffPLN * tariffRate;
+  
+  const transportToPolandPLN = 3000; // Example: Transport from Bremerhaven to client in PL
+  
+  finalPrice.value = Math.round((valueAfterDutyPLN + vatAmountPLN + agencyFeePLN + tariffAmountPLN + transportToPolandPLN) * 100) / 100;
+  
   calculationDetails.value = {
-    cifUSD: cif,
+    priceWithAuctionFeeUSD: UsaCost.value.priceUSD + UsaCost.value.auctionFeeUSD,
+    cifUSD: cifUSD,
     cifPLN: cifPLN,
-    cifEUR: cifEUR,
     dutyRate: dutyRate * 100,
-    dutyAmount: dutyAmount,
-    vatAmount: vatAmount,
-    agencyFee: agencyFee,
+    dutyAmountPLN: dutyAmountPLN,
+    vatAmountPLN: vatAmountPLN,
+    agencyFeePLN: agencyFeePLN,
     tariffRate: tariffRate * 100,
-    tariffAmount: tariffAmount,
-    shippingCostEu: shippingCostEu
+    tariffAmountPLN: tariffAmountPLN,
+    transportToPolandPLN: transportToPolandPLN
   };
 }
 
 const resetForm = () => {
   UsaCost.value.priceUSD = 0;
+  UsaCost.value.auctionFeeUSD = 0;
+  // Reset other UsaCost values if they are inputs, e.g., UsaCost.value.transportToPortUSA = 700;
   Vehicle.value.vehicleType = 1;
   Vehicle.value.engineType = 1;
   Vehicle.value.year = date.getFullYear();
   showResults.value = false;
+  finalPrice.value = 0;
 }
 
 onMounted(async () => {
+  isLoading.value = true;
+  ratesError.value = false;
   try {
     await Promise.all([
       setUSDRate(),
@@ -171,49 +190,49 @@ onMounted(async () => {
     ]);
   } catch (error) {
     console.error('Error loading exchange rates:', error);
-    ratesError.value = true;
+    // ratesError is set within individual fetch functions
   } finally {
     isLoading.value = false;
   }
 });
 
 const currentYear = computed(() => new Date().getFullYear());
-const currencyRatesInfo = computed(() => `USD: ${usdRate.value.toFixed(2)} PLN, EUR: ${eurRate.value.toFixed(2)} PLN`);
+const currencyRatesInfo = computed(() => `Aktualne kursy NBP: 1 USD = ${usdRate.value.toFixed(4)} PLN, 1 EUR = ${eurRate.value.toFixed(4)} PLN`);
 </script>
 
 <template>
-  <router-link to="/">
-    <button class="btn-calculate">Powrót na stronę główną</button>
-  </router-link>
-  <div class="calculator-container">
-    <div class="header">
-      <h1>Kalkulator importu pojazdu z USA</h1>
-      <p class="subtitle">Oblicz koszt importu samochodu lub motocykla z USA do Polski</p>
+  <div class="page-container">
+    <router-link to="/" class="btn-back">
+      &larr; Powrót na stronę główną
+    </router-link>
+    
+    <header class="header">
+      <h1>Kalkulator Importu z USA</h1>
+      <p class="subtitle">Precyzyjnie oszacuj całkowity koszt importu pojazdu z USA do Polski.</p>
       
-      <div v-if="isLoading" class="loading-banner">
+      <div v-if="isLoading" class="banner loading-banner">
         <div class="spinner"></div>
-        <span>Pobieranie aktualnych kursów walut...</span>
+        <span>Pobieranie aktualnych kursów walut NBP...</span>
       </div>
       
-      <div v-else-if="ratesError" class="error-banner">
-        <span>⚠️ Błąd pobierania kursów walut. Używamy wartości domyślnych.</span>
+      <div v-else-if="ratesError" class="banner error-banner">
+        <span>⚠️ Błąd pobierania kursów walut. Użyte zostaną wartości domyślne (USD: {{usdRate.toFixed(4)}}, EUR: {{eurRate.toFixed(4)}}). Prosimy o ostrożność.</span>
       </div>
       
-      <div v-else class="rates-banner">
-        <span>Kursy walut: {{ currencyRatesInfo }}</span>
+      <div v-else class="banner rates-banner">
+        <span>{{ currencyRatesInfo }}</span>
       </div>
-    </div>
+    </header>
 
-    <div class="main-content">
-      <div class="left-column">
-        <div class="section">
-          <h2 class="section-title">Oblicz cenę końcową oferty</h2>
-          <div class="red-line"></div>
+    <main class="main-content">
+      <section class="form-column">
+        <div class="content-card">
+          <h2 class="section-title">Dane Pojazdu i Koszty w USA</h2>
+          <div class="accent-line"></div>
           
           <form @submit="handleForm" v-if="!showResults">
             <div class="form-group">
-              <label for="car-price-usd">Cena pojazdu</label>
-              <p class="form-hint">(wpisz kwotę w walucie USD)</p>
+              <label for="car-price-usd">Cena zakupu pojazdu (USD)</label>
               <div class="input-with-symbol">
                 <span class="currency-symbol">$</span>
                 <input 
@@ -221,214 +240,320 @@ const currencyRatesInfo = computed(() => `USD: ${usdRate.value.toFixed(2)} PLN, 
                   name="car-price-usd" 
                   id="car-price-usd"
                   min="0" 
-                  v-model="UsaCost.priceUSD"
+                  step="100"
+                  v-model.number="UsaCost.priceUSD"
                   required
-                  placeholder="0"
+                  placeholder="np. 15000"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="auction-fee-usd">Opłata aukcyjna / Dealera (USD)</label>
+              <div class="input-with-symbol">
+                <span class="currency-symbol">$</span>
+                <input 
+                  type="number" 
+                  name="auction-fee-usd" 
+                  id="auction-fee-usd"
+                  min="0" 
+                  step="10"
+                  v-model.number="UsaCost.auctionFeeUSD"
+                  placeholder="np. 300"
+                />
+              </div>
+              <p class="form-hint">Wpisz 0, jeśli zawarte w cenie pojazdu.</p>
+            </div>
+
+            <div class="form-group">
+              <label for="transport-to-port-usd">Transport do portu w USA (USD)</label>
+              <div class="input-with-symbol">
+                <span class="currency-symbol">$</span>
+                <input 
+                  type="number" 
+                  name="transport-to-port-usd" 
+                  id="transport-to-port-usd"
+                  min="0" 
+                  step="50"
+                  v-model.number="UsaCost.transportToPortUSA"
+                  placeholder="np. 700"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="ocean-freight-usd">Fracht morski USA -> Europa (USD)</label>
+              <div class="input-with-symbol">
+                <span class="currency-symbol">$</span>
+                <input 
+                  type="number" 
+                  name="ocean-freight-usd" 
+                  id="ocean-freight-usd"
+                  min="0" 
+                  step="50"
+                  v-model.number="UsaCost.oceanFreightUSD"
+                  placeholder="np. 1200"
                 />
               </div>
             </div>
             
             <div class="form-group">
-              <label for="production-year">Rok produkcji</label>
+              <label for="production-year-us">Rok produkcji</label>
               <input 
                 type="number" 
-                name="production-year" 
-                id="production-year"
-                v-model="Vehicle.year" 
+                name="production-year-us" 
+                id="production-year-us"
+                v-model.number="Vehicle.year" 
                 min="1900" 
                 :max="currentYear"
                 required
+                placeholder="np. 2018"
               />
+               <p class="form-hint">Standardowe stawki cła dla importu z USA. Wiek pojazdu rzadko wpływa na cło z USA do UE tak jak w przypadku importu np. z Japonii.</p>
             </div>
             
             <div class="form-group">
-              <label for="vehicle-type">Typ pojazdu</label>
-              <select name="vehicle-type" id="vehicle-type" v-model="Vehicle.vehicleType">
-                <option value="1">Samochód</option>
-                <option value="2">Motocykl</option>
+              <label for="vehicle-type-us">Typ pojazdu</label>
+              <select name="vehicle-type-us" id="vehicle-type-us" v-model.number="Vehicle.vehicleType">
+                <option value="1">Samochód osobowy (Cło: 10%)</option>
+                <option value="2">Motocykl (Cło: 6%)</option>
+                <option value="3">Inny (np. Quad, ATV - Cło: zazwyczaj 10%)</option>
               </select>
             </div>
             
             <div class="form-group">
-              <label for="tariff">Typ silnika/akcyza</label>
-              <select name="tariff" id="tariff" v-model="Vehicle.engineType">
-                <optgroup label="Spalinowe">
-                  <option value=1>Pojemność silnika do 2000 cm³: 3,1%</option>
-                  <option value=2>Pojemność silnika powyżej 2000 cm³: 18,6%</option>
+              <label for="tariff-us">Typ silnika / Stawka akcyzy</label>
+              <select name="tariff-us" id="tariff-us" v-model.number="Vehicle.engineType">
+                <optgroup label="Silniki Benzynowe">
+                  <option value="1">Poj. do 2000 cm³ (Akcyza: 3.1%)</option>
+                  <option value="2">Poj. pow. 2000 cm³ (Akcyza: 18.6%)</option>
                 </optgroup>
-                <optgroup label="Hybrydowe">
-                  <option value=3>Pojemność silnika do 2000 cm³: 1,55%</option>
-                  <option value=4>Pojemność silnika powyżej 2000 cm³ (do 3500 cm³): 9,3%</option>
-                  <option value=5>Pojemność silnika powyżej 3500 cm³: 18.6%</option>
+                <optgroup label="Samochody Hybrydowe (HEV/MHEV)">
+                  <option value="3">Poj. do 2000 cm³ (Akcyza: 1.55%)</option>
+                  <option value="4">Poj. 2001-3500 cm³ (Akcyza: 9.3%)</option>
+                  <option value="5">Poj. pow. 3500 cm³ (Akcyza: 18.6%)</option>
                 </optgroup>
-                <optgroup label="Hybrydy Plug-In">
-                  <option value=6>Pojemność silnika do 2000 cm³: 0%</option>
-                  <option value=7>Pojemność silnika powyżej 2000 cm³ (do 3500 cm³): 9,3%</option>
-                  <option value=8>Pojemność silnika powyżej 3500 cm³: 18.6%</option>
+                <optgroup label="Hybrydy Plug-In (PHEV)">
+                  <option value="6">Poj. do 2000 cm³ (Akcyza: 0%)</option>
+                  <option value="7">Poj. 2001-3500 cm³ (Akcyza: 9.3%)</option>
+                  <option value="8">Poj. pow. 3500 cm³ (Akcyza: 18.6%)</option>
                 </optgroup>
-                <optgroup label="Elektryczne">
-                  <option value=9>Elektryczne: 0%</option>
+                <optgroup label="Samochody Elektryczne (BEV)">
+                  <option value="9">Wszystkie (Akcyza: 0%)</option>
                 </optgroup>
               </select>
             </div>
             
             <div class="form-actions">
-              <button type="submit" class="btn-calculate">Oblicz koszt importu</button>
+              <button type="submit" class="btn btn-primary">Oblicz Pełne Koszty</button>
             </div>
           </form>
           
-          <div v-else class="results">
-            <div class="result-header">
-              <h3>Szacowany koszt importu:</h3>
-              <div class="final-price">{{ formatCurrency(finalPrice) }}</div>
-            </div>
+          <div v-else class="results-summary-card">
+            <h3 class="summary-title">Szacowany Całkowity Koszt Importu:</h3>
+            <div class="final-price-prominent">{{ formatCurrency(finalPrice) }}</div>
+            <p class="final-price-hint">(zawiera wszystkie opłaty, podatki i prowizje)</p>
             
             <div class="form-actions">
-              <button @click="resetForm" class="btn-reset">Nowa kalkulacja</button>
+              <button @click="resetForm" class="btn btn-secondary">Oblicz Ponownie</button>
             </div>
           </div>
         </div>
-      </div>
+      </section>
       
-      <div class="right-column" v-if="showResults">
-        <div class="section">
-          <h2 class="section-title">Podsumowanie kosztów</h2>
-          <div class="red-line"></div>
+      <section class="results-column" v-if="showResults">
+        <div class="content-card">
+          <h2 class="section-title">Szczegółowe Podsumowanie Kosztów</h2>
+          <div class="accent-line"></div>
           
           <div class="cost-section">
-            <h3>Koszty w USA</h3>
+            <h3 class="cost-category-title">Koszty w USA (USD)</h3>
             <div class="cost-item">
-              <span>Koszty transportu (do portu w USA):</span>
-              <span class="cost-value">${{ UsaCost.shippingCost.toFixed(2) }}</span>
+              <span>Cena pojazdu:</span>
+              <span class="cost-value">{{ formatCurrency(UsaCost.priceUSD, 'USD') }}</span>
             </div>
             <div class="cost-item">
-              <span>Koszty transportu (fracht morski):</span>
-              <span class="cost-value">${{ UsaCost.transportCostUSA.toFixed(2) }}</span>
+              <span>Opłata aukcyjna / Dealera:</span>
+              <span class="cost-value">{{ formatCurrency(UsaCost.auctionFeeUSD, 'USD') }}</span>
+            </div>
+             <div class="cost-item">
+              <span>SUMA (Pojazd + Opłata aukcyjna):</span>
+              <span class="cost-value">{{ formatCurrency(calculationDetails.priceWithAuctionFeeUSD, 'USD') }}</span>
             </div>
             <div class="cost-item">
-              <span>CIF (koszt, ubezpieczenie, fracht):</span>
-              <span class="cost-value">${{ calculationDetails.cifUSD.toFixed(2) }}</span>
+              <span>Transport do portu w USA:</span>
+              <span class="cost-value">{{ formatCurrency(UsaCost.transportToPortUSA, 'USD') }}</span>
+            </div>
+            <div class="cost-item">
+              <span>Fracht morski (USA -> Europa):</span>
+              <span class="cost-value">{{ formatCurrency(UsaCost.oceanFreightUSD, 'USD') }}</span>
+            </div>
+            <div class="cost-item subtotal">
+              <span>SUMA CIF (Koszt, Ubezpieczenie, Fracht):</span>
+              <span class="cost-value">{{ formatCurrency(calculationDetails.cifUSD, 'USD') }}</span>
+            </div>
+            <div class="cost-item equivalent">
+              <span>Równowartość CIF w PLN (kurs {{ usdRate.toFixed(4) }}):</span>
+              <span class="cost-value">{{ formatCurrency(calculationDetails.cifPLN) }}</span>
             </div>
           </div>
           
           <div class="cost-section">
-            <h3>Koszty w Europie</h3>
+            <h3 class="cost-category-title">Opłaty Importowe (PLN)</h3>
             <div class="cost-item">
-              <span>Cło:</span>
-              <span class="cost-value">{{ calculationDetails.dutyRate.toFixed(1) }}% ({{ formatCurrency(calculationDetails.dutyAmount) }})</span>
+              <span>Cło ({{ calculationDetails.dutyRate.toFixed(1) }}% od CIF w PLN):</span>
+              <span class="cost-value">{{ formatCurrency(calculationDetails.dutyAmountPLN) }}</span>
             </div>
             <div class="cost-item">
-              <span>VAT:</span>
-              <span class="cost-value">19% ({{ formatCurrency(calculationDetails.vatAmount) }})</span>
+              <span>VAT (19% od [CIF w PLN + Cło]):</span>
+              <span class="cost-value">{{ formatCurrency(calculationDetails.vatAmountPLN) }}</span>
             </div>
-            <div class="cost-item">
-              <span>Opłata agencyjna:</span>
-              <span class="cost-value">{{ calculationDetails.agencyFee }} EUR</span>
+             <div class="cost-item">
+              <span>Opłaty portowe i agencji celnej ({{EurCost.dutyAgencyEUR}} EUR):</span>
+              <span class="cost-value">{{ formatCurrency(calculationDetails.agencyFeePLN) }}</span>
             </div>
           </div>
           
           <div class="cost-section">
-            <h3>Koszty w Polsce</h3>
+            <h3 class="cost-category-title">Koszty w Polsce (PLN)</h3>
             <div class="cost-item">
-              <span>Akcyza:</span>
-              <span class="cost-value">{{ calculationDetails.tariffRate.toFixed(1) }}% ({{ formatCurrency(calculationDetails.tariffAmount) }})</span>
+              <span>Akcyza ({{ calculationDetails.tariffRate.toFixed(2) }}% od [CIF w PLN + Cło]):</span>
+              <span class="cost-value">{{ formatCurrency(calculationDetails.tariffAmountPLN) }}</span>
             </div>
             <div class="cost-item">
-              <span>Koszt dostawy na terenie PL:</span>
-              <span class="cost-value">{{ formatCurrency(calculationDetails.shippingCostEu) }}</span>
+              <span>Transport pojazdu na terenie Polski:</span>
+              <span class="cost-value">{{ formatCurrency(calculationDetails.transportToPolandPLN) }}</span>
             </div>
+            <!-- Note: Service/commission fee not included in this version, add if needed -->
           </div>
           
           <div class="total-section">
-            <div class="red-line"></div>
+            <div class="accent-line"></div>
             <div class="total-item">
-              <span class="total-label">Razem:</span>
-              <span class="total-value">{{ formatCurrency(finalPrice) }}</span>
+              <span class="total-label">Całkowity Koszt Importu (PLN):</span>
+              <span class="total-value-final">{{ formatCurrency(finalPrice) }}</span>
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
 
+    <!-- Ad Placeholder - Kept commented out -->
+    <!--
     <div class="ad-container" :class="{ 'slide-down': showResults }">
       <div class="ad-placeholder">
         <span>Miejsce na reklamę</span>
       </div>
     </div>
+    -->
     
-    <div class="footer">
-      <p>© {{ currentYear }} Import Calculator | Kursy walut pobierane z NBP API</p>
-      <p class="disclaimer">Kalkulacja ma charakter szacunkowy. Faktyczne koszty mogą się różnić.</p>
-    </div>
+    <footer class="footer">
+      <p>© {{ currentYear }} ImportMaster | Kursy walut pobierane z API NBP.</p>
+      <p class="disclaimer">Prezentowane kalkulacje mają charakter wyłącznie szacunkowy i informacyjny. Rzeczywiste koszty importu mogą się różnić. Zalecamy kontakt w celu uzyskania dokładnej wyceny.</p>
+    </footer>
   </div>
 </template>
 
 <style scoped>
+/* Global Resets & Base Styles (consistent with JapanImport.vue) */
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f5f5f5;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background-color: #f8f9fa;
+  color: #212529;
+  line-height: 1.6;
+  font-size: 16px;
 }
 
-.calculator-container {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  margin: 0 auto;
-  padding: 2rem;
-  background-color: #f5f5f5;
+.page-container {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1280px; 
+  margin: 0 auto;
+  padding: 1rem;
 }
 
+/* Back Button */
+.btn-back {
+  display: inline-block;
+  padding: 0.6rem 1.2rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #007bff;
+  background-color: transparent;
+  border: 1px solid #007bff;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  align-self: flex-start;
+}
+
+.btn-back:hover {
+  background-color: #007bff;
+  color: #ffffff;
+}
+
+/* Header */
 .header {
   text-align: center;
+  padding: 1rem 0 1.5rem 0;
   margin-bottom: 2rem;
 }
 
 .header h1 {
-  color: #333;
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
+  font-size: 2.5rem; 
+  font-weight: 700;
+  color: #343a40;
+  margin-bottom: 0.6rem;
 }
 
 .subtitle {
-  color: #666;
-  font-size: 1rem;
-  margin-bottom: 1rem;
+  font-size: 1.1rem; 
+  color: #495057;
+  max-width: 750px;
+  margin: 0 auto 1.25rem auto;
 }
 
-.loading-banner,
-.error-banner,
-.rates-banner {
-  margin-top: 1rem;
-  padding: 0.75rem;
-  border-radius: 8px;
+/* Banners */
+.banner {
+  margin-top: 1.5rem;
+  padding: 0.85rem 1.25rem;
+  border-radius: 6px;
   font-weight: 500;
   text-align: center;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
 }
 
 .loading-banner {
-  background-color: #e3f2fd;
-  color: #1976d2;
+  background-color: #e0f3ff; 
+  color: #005f99; 
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .spinner {
-  width: 18px;
-  height: 18px;
-  border: 3px solid #1976d2;
-  border-top: 3px solid transparent;
+  width: 20px;
+  height: 20px;
+  border: 3px solid currentColor; 
+  border-top-color: transparent;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
@@ -436,48 +561,61 @@ body {
 }
 
 .error-banner {
-  background-color: #ffebee;
-  color: #c62828;
+  background-color: #ffebee; 
+  color: #c62828; 
 }
 
 .rates-banner {
-  background-color: #e8f5e9;
-  color: #2e7d32;
+  background-color: #e6ffed; 
+  color: #1e7e34; 
 }
 
+/* Main Content Layout */
 .main-content {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr; 
   gap: 2rem;
-  margin-bottom: 2rem;
+  width: 100%;
+  flex-grow: 1;
 }
 
-.left-column,
-.right-column {
-  background-color: white;
+@media (min-width: 992px) { 
+  .main-content {
+    grid-template-columns: minmax(400px, 1.2fr) 1fr; 
+  }
+}
+
+.form-column, .results-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.content-card {
+  background-color: #ffffff;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-.section {
-  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 2rem; 
+  width: 100%;
 }
 
 .section-title {
-  font-size: 1.25rem;
+  font-size: 1.6rem; 
   font-weight: 600;
-  color: #333;
-  margin: 0 0 0.5rem 0;
+  color: #343a40;
+  margin-bottom: 0.6rem;
+  text-align: left;
 }
 
-.red-line {
-  width: 40px;
-  height: 3px;
-  background-color: #e53e3e;
-  margin-bottom: 1.5rem;
+.accent-line {
+  width: 50px;
+  height: 4px;
+  background-color: #007bff; 
+  margin-bottom: 1.75rem;
+  border-radius: 2px;
+  /* text-align: left; ALREADY A BLOCK ELEMENT */
 }
 
+/* Form Styling */
 .form-group {
   margin-bottom: 1.5rem;
 }
@@ -486,188 +624,288 @@ body {
   display: block;
   font-weight: 600;
   margin-bottom: 0.5rem;
-  color: #333;
+  color: #343a40;
   font-size: 0.95rem;
 }
 
 .form-hint {
-  font-size: 0.85rem;
-  color: #666;
-  margin: 0.25rem 0 0.5rem 0;
+  font-size: 0.8rem;
+  color: #6c757d;
+  margin-top: 0.25rem;
 }
 
 .input-with-symbol {
   display: flex;
   align-items: center;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+.input-with-symbol:focus-within {
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 }
 
 .currency-symbol {
-  padding: 0.75rem;
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
-  border-right: none;
-  border-radius: 4px 0 0 4px;
+  padding: 0.75rem 1rem;
+  background-color: #e9ecef; /* Lighter gray for symbol bg */
+  border-right: 1px solid #ced4da;
+  color: #495057;
   font-weight: 600;
-  color: #333;
+  border-radius: 6px 0 0 6px; /* Match parent border-radius */
 }
 
-.input-with-symbol input {
-  border-left: none;
-  border-radius: 0 4px 4px 0;
+.input-with-symbol input[type="number"] {
+  border: none; /* Remove individual border */
+  border-radius: 0 6px 6px 0; /* Adjust to fit */
+  padding-left: 0.75rem; /* Add some padding */
+  box-shadow: none; /* Remove individual focus shadow */
 }
+.input-with-symbol input[type="number"]:focus {
+  outline: none;
+  box-shadow: none; /* Ensure no double shadow */
+}
+
 
 input[type="number"],
 select {
   width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
   font-size: 1rem;
-  background-color: white;
-  transition: border-color 0.3s;
+  background-color: #ffffff;
+  color: #495057;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
 input[type="number"]:focus,
 select:focus {
   outline: none;
-  border-color: #3182ce;
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
 }
 
-input[type="number"] {
-  text-align: left;
+input::placeholder {
+  color: #adb5bd;
+}
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  padding: 0.875rem 1.75rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out, transform 0.1s ease;
+  text-align: center;
+  text-decoration: none;
+  width: 100%; 
+}
+
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.btn-primary:hover {
+  background-color: #0056b3;
+  transform: translateY(-2px);
+}
+.btn-primary:active {
+  background-color: #004085;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background-color: #6c757d; 
+  color: white;
+}
+.btn-secondary:hover {
+  background-color: #545b62;
+  transform: translateY(-2px);
+}
+.btn-secondary:active {
+  background-color: #42474c;
+  transform: translateY(-1px);
 }
 
 .form-actions {
-  margin-top: 1.5rem;
+  margin-top: 2rem;
 }
 
-.btn-calculate,
-.btn-reset {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 4px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: background-color 0.3s;
+/* Results Summary Card (in form column after submission) */
+.results-summary-card {
+  text-align: center;
+  padding: 1rem 0;
+}
+.summary-title {
+  font-size: 1.15rem;
+  color: #495057;
+  margin-bottom: 0.75rem;
   font-weight: 600;
 }
-
-.btn-calculate {
-  background-color: #3182ce;
-  color: white;
-  width: 100%;
+.final-price-prominent {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: #007bff; 
+  margin-bottom: 0.5rem;
 }
-
-.btn-calculate:hover {
-  background-color: #2c5282;
-}
-
-.btn-reset {
-  background-color: #e53e3e;
-  color: white;
-  width: 100%;
-}
-
-.btn-reset:hover {
-  background-color: #c53030;
-}
-
-.results {
-  text-align: center;
-}
-
-.result-header h3 {
-  font-size: 1.1rem;
-  color: #333;
-  margin-bottom: 1rem;
-}
-
-.final-price {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: #e53e3e;
+.final-price-hint {
+  font-size: 0.85rem;
+  color: #6c757d;
   margin-bottom: 1.5rem;
+}
+
+/* Detailed Results Column Styling */
+.results-column .section-title {
+  margin-bottom: 0.6rem;
+}
+.results-column .accent-line {
+  margin-bottom: 1.75rem;
 }
 
 .cost-section {
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
 }
-
-.cost-section h3 {
-  font-size: 1rem;
+.cost-category-title {
+  font-size: 1.2rem;
   font-weight: 600;
-  color: #333;
-  margin-bottom: 0.75rem;
+  color: #343a40;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e9ecef;
 }
-
 .cost-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 0;
-  font-size: 0.9rem;
-  color: #555;
+  padding: 0.6rem 0;
+  font-size: 0.95rem;
+  color: #495057;
+  border-bottom: 1px solid #f8f9fa; 
 }
-
+.cost-item:last-child {
+  border-bottom: none;
+}
+.cost-item span:first-child {
+  flex-basis: 65%; /* More space for description */
+  padding-right: 0.5rem;
+}
 .cost-value {
   font-weight: 600;
-  color: #333;
+  color: #212529;
+  text-align: right;
+}
+.cost-item.subtotal {
+  font-weight: bold;
+  color: #343a40;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #dee2e6;
+}
+.cost-item.subtotal .cost-value {
+  font-size: 1.05rem;
+}
+.cost-item.equivalent {
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+.cost-item.equivalent .cost-value {
+  font-weight: normal;
 }
 
 .total-section {
   margin-top: 1.5rem;
-  padding-top: 1rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #007bff; 
 }
-
+.total-section .accent-line { 
+  display: none;
+}
 .total-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 0;
-  font-size: 1.1rem;
+  padding: 0.5rem 0;
 }
-
 .total-label {
-  font-weight: 600;
-  color: #333;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #343a40;
 }
-
-.total-value {
+.total-value-final {
+  font-size: 1.75rem;
   font-weight: bold;
-  font-size: 1.2rem;
-  color: #e53e3e;
+  color: #007bff; 
 }
 
-.ad-container {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.5s ease-in-out;
-  margin-bottom: 2rem;
-}
-
-.ad-container.slide-down {
-  max-height: 100px;
-}
-
-.ad-placeholder {
-  background-color: #f0f0f0;
-  padding: 1rem;
-  text-align: center;
-  border-radius: 8px;
-  font-size: 1rem;
-  color: #666;
-}
-
+/* Footer */
 .footer {
   text-align: center;
-  font-size: 0.875rem;
-  color: #666;
-  margin-top: 2rem;
+  padding: 2.5rem 0 1.5rem 0;
+  font-size: 0.85rem;
+  color: #6c757d;
+  margin-top: auto; 
+  border-top: 1px solid #dee2e6;
+}
+.disclaimer {
+  font-size: 0.75rem;
+  font-style: italic;
+  margin-top: 0.75rem;
+  color: #868e96;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.disclaimer {
-  font-style: italic;
-  margin-top: 0.5rem;
-  color: #888;
+/* Responsive Adjustments */
+@media (max-width: 991px) { 
+  .main-content {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  .results-column {
+    margin-top: 0; 
+  }
+  .header h1 { font-size: 2.15rem; }
+  .subtitle { font-size: 1.05rem; }
+  .section-title { font-size: 1.4rem; }
+  .content-card { padding: 1.5rem; }
+}
+
+@media (max-width: 767px) { 
+  .page-container { padding: 0.75rem; }
+  .btn-back { padding: 0.5rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; }
+  .header h1 { font-size: 1.85rem; }
+  .subtitle { font-size: 0.95rem; }
+  .banner { padding: 0.75rem 1rem; font-size: 0.9rem; }
+  .section-title { font-size: 1.3rem; }
+  .content-card { padding: 1.25rem; }
+  .btn { padding: 0.75rem 1.5rem; font-size: 0.95rem; }
+  .final-price-prominent { font-size: 2rem; }
+  .total-label { font-size: 1.15rem; }
+  .total-value-final { font-size: 1.5rem; }
+}
+
+@media (max-width: 480px) { 
+   .page-container { padding: 0.5rem; }
+  .header { padding-bottom: 1rem; margin-bottom: 1.5rem; }
+  .header h1 { font-size: 1.65rem; }
+  .subtitle { font-size: 0.9rem; }
+  .content-card { padding: 1rem; }
+  .form-group label { font-size: 0.9rem; }
+  input[type="number"], select, .btn, .currency-symbol { font-size: 0.9rem; }
+  .input-with-symbol input[type="number"] { padding-left: 0.5rem; }
+  .currency-symbol { padding: 0.75rem 0.75rem; }
+  .final-price-prominent { font-size: 1.8rem; }
+  .cost-category-title { font-size: 1.1rem; }
+  .cost-item, .cost-item span:first-child { font-size: 0.9rem; }
+  .cost-item.subtotal .cost-value { font-size: 1rem; }
+  .total-label { font-size: 1.1rem; }
+  .total-value-final { font-size: 1.35rem; }
+  .footer { padding: 2rem 0 1rem 0; }
 }
 </style>
