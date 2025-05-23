@@ -1,153 +1,176 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+// import { ref } from 'vue' // showAd related, commented out for now
 
-const showAd = ref(false);
+// const showAd = ref(false); // Ad functionality commented out
 
-const toggleAd = () => {
-  showAd.value = true;
-}
+// const toggleAd = () => { // Ad functionality commented out
+//   showAd.value = true;
+// }
 </script>
 
 <template>
   <div class="landing-container">
-    <div class="header">
+    <header class="header">
       <h1>Kalkulator Importu Pojazdów</h1>
-      <p class="subtitle">Oblicz koszty importu samochodów i motocykli z Japonii lub USA do Polski</p>
-    </div>
+      <p class="subtitle">Precyzyjnie oblicz całkowity koszt importu wymarzonego samochodu lub motocykla z Japonii i USA do Polski.</p>
+    </header>
 
-    <div class="main-content">
-      <div class="section">
-        <h2 class="section-title">Witaj w naszym kalkulatorze importu!</h2>
-        <div class="red-line"></div>
+    <main class="main-content">
+      <section class="intro-section">
+        <h2 class="section-title">Twój Klucz do Importu Bez Niespodzianek</h2>
+        <div class="accent-line"></div>
         <p class="intro-text">
-          Planujesz import pojazdu z Japonii lub USA? Nasz kalkulator pomoże Ci oszacować pełne koszty, 
-          w tym cło, VAT, akcyzę i inne opłaty. Korzystamy z aktualnych kursów walut z NBP, aby 
-          zapewnić precyzyjne wyliczenia. Wybierz kraj pochodzenia pojazdu i zacznij już teraz!
+          Masz dość niepewności przy imporcie pojazdu? Nasze kalkulatory online precyzyjnie oszacują wszystkie koszty importu aut i motocykli z Japonii oraz Stanów Zjednoczonych. Od cła, przez VAT i akcyzę, aż po dodatkowe opłaty – wszystko w jednym miejscu, z aktualnymi kursami walut NBP. Wybierz rynek i zacznij świadome planowanie!
         </p>
         <div class="calculator-links">
-          <router-link to="/import-japonia" class="btn-calculate" @click="toggleAd">
+          <router-link to="/import-japonia" class="btn-calculate">
             Kalkulator importu z Japonii
           </router-link>
-          <router-link to="/import-usa" class="btn-calculate" @click="toggleAd">
+          <router-link to="/import-usa" class="btn-calculate">
             Kalkulator importu z USA
           </router-link>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
 
+    <!-- Ad Placeholder Commented Out
     <div class="ad-container" :class="{ 'slide-down': showAd }">
       <div class="ad-placeholder">
         <span>Miejsce na reklamę</span>
       </div>
     </div>
+    -->
 
-    <div class="footer">
+    <footer class="footer">
       <p>© {{ new Date().getFullYear() }} Import Calculator | Kursy walut pobierane z NBP API</p>
       <p class="disclaimer">Kalkulacje mają charakter szacunkowy. Faktyczne koszty mogą się różnić.</p>
-    </div>
+    </footer>
   </div>
 </template>
 
 <style scoped>
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f5f5f5;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background-color: #f8f9fa; /* Light gray background */
+  color: #212529; /* Darker text color for better contrast */
+  line-height: 1.6;
 }
 
 .landing-container {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  margin: 0 auto;
-  padding: 2rem;
-  background-color: #f5f5f5;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1140px; /* Max width for larger screens */
+  margin: 0 auto;
+  padding: 1.5rem; /* Responsive padding */
 }
 
 .header {
   text-align: center;
-  margin-bottom: 2rem;
+  padding: 2rem 0; /* More vertical padding */
+  margin-bottom: 2.5rem; /* Increased bottom margin */
 }
 
 .header h1 {
-  color: #333;
-  font-size: 2rem;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
+  font-size: 2.75rem; /* Increased font size */
+  font-weight: 700; /* Bolder */
+  color: #343a40; /* Darker heading color */
+  margin-bottom: 0.75rem;
 }
 
 .subtitle {
-  color: #666;
-  font-size: 1rem;
-  margin-bottom: 1rem;
+  font-size: 1.15rem; /* Slightly larger subtitle */
+  color: #495057; /* Softer color for subtitle */
+  max-width: 700px;
+  margin: 0 auto 1.5rem auto; /* Centered with bottom margin */
 }
 
 .main-content {
+  flex-grow: 1;
   display: flex;
   justify-content: center;
-  margin-bottom: 2rem;
-}
-
-.section {
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
-  max-width: 600px;
   width: 100%;
 }
 
-.section-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #333;
-  margin: 0 0 0.5rem 0;
+.intro-section {
+  background-color: #ffffff; /* White background for content card */
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Softer, modern shadow */
+  padding: 2.5rem; /* Increased padding */
+  width: 100%;
+  max-width: 720px; /* Optimal width for readability */
+  text-align: center; /* Center text within the card */
 }
 
-.red-line {
-  width: 40px;
-  height: 3px;
-  background-color: #e53e3e;
-  margin-bottom: 1.5rem;
+.section-title {
+  font-size: 1.75rem; /* Larger section title */
+  font-weight: 600;
+  color: #343a40;
+  margin-bottom: 0.75rem; /* Adjusted margin */
+}
+
+.accent-line {
+  width: 60px; /* Wider accent line */
+  height: 4px; /* Thicker line */
+  background-color: #007bff; /* Modern blue accent */
+  margin: 0 auto 1.75rem auto; /* Centered with increased bottom margin */
+  border-radius: 2px;
 }
 
 .intro-text {
-  font-size: 1rem;
-  color: #555;
-  margin-bottom: 1.5rem;
-  line-height: 1.5;
+  font-size: 1.05rem; /* Slightly larger intro text */
+  color: #495057;
+  margin-bottom: 2rem; /* Increased margin */
+  line-height: 1.7; /* Improved line height */
 }
 
 .calculator-links {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: 1fr; /* Default to single column */
+  gap: 1rem; /* Space between buttons */
 }
 
 .btn-calculate {
   display: block;
-  padding: 0.75rem 1.5rem;
+  padding: 0.875rem 1.75rem; /* Generous padding */
   border: none;
-  border-radius: 4px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: background-color 0.3s;
+  border-radius: 6px; /* Rounded corners */
+  font-size: 1.05rem;
   font-weight: 600;
-  background-color: #3182ce;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out, transform 0.1s ease;
+  background-color: #007bff; /* Primary button blue */
   color: white;
   text-align: center;
   text-decoration: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .btn-calculate:hover {
-  background-color: #2c5282;
+  background-color: #0056b3; /* Darker blue on hover */
+  transform: translateY(-2px); /* Slight lift on hover */
 }
 
+.btn-calculate:active {
+  background-color: #004085; /* Even darker on active/click */
+  transform: translateY(-1px);
+}
+
+/* Ad placeholder styling - commented out as the ad itself is commented out
 .ad-container {
   max-height: 0;
   overflow: hidden;
@@ -156,28 +179,93 @@ body {
 }
 
 .ad-container.slide-down {
-  max-height: 100px;
+  max-height: 100px; 
 }
 
 .ad-placeholder {
-  background-color: #f0f0f0;
+  background-color: #e9ecef; 
   padding: 1rem;
   text-align: center;
   border-radius: 8px;
   font-size: 1rem;
-  color: #666;
+  color: #6c757d; 
 }
+*/
 
 .footer {
   text-align: center;
-  font-size: 0.875rem;
-  color: #666;
-  margin-top: 2rem;
+  padding: 2rem 0;
+  font-size: 0.9rem;
+  color: #6c757d; /* Softer footer text color */
+  margin-top: 3rem; /* More space above footer */
+  border-top: 1px solid #dee2e6; /* Subtle top border */
 }
 
 .disclaimer {
+  font-size: 0.8rem; /* Smaller disclaimer */
   font-style: italic;
   margin-top: 0.5rem;
-  color: #888;
+  color: #868e96; /* Even softer color for disclaimer */
+}
+
+/* Responsive Adjustments */
+@media (min-width: 768px) {
+  .calculator-links {
+    grid-template-columns: 1fr 1fr; /* Two columns on larger screens */
+    gap: 1.5rem; /* Increased gap for two columns */
+  }
+
+  .intro-section {
+    padding: 3rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .header h1 {
+    font-size: 2.25rem; /* Adjusted for smaller screens */
+  }
+
+  .subtitle {
+    font-size: 1rem;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+
+  .intro-section {
+    padding: 2rem 1.5rem; /* Adjust padding for smaller screens */
+  }
+
+  .btn-calculate {
+    padding: 0.8rem 1.25rem;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-container {
+    padding: 1rem;
+  }
+  
+  .header h1 {
+    font-size: 1.85rem;
+  }
+
+  .subtitle {
+    font-size: 0.9rem;
+  }
+
+  .section-title {
+    font-size: 1.35rem;
+  }
+
+  .intro-text {
+    font-size: 0.95rem;
+  }
+
+  .intro-section {
+    padding: 1.5rem 1rem;
+  }
 }
 </style>
