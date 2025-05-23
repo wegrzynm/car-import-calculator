@@ -2,10 +2,12 @@
 
 import HomeView from '../components/HelloWorld.vue'
 import AmericanImport from '../components/AmericanImport.vue';
+import JapanImport from '../components/JapanImport.vue';
 
 const routes = [
   { path: '/', component: HomeView },
-  { path: '/import-ameryka', component: AmericanImport },
+  { path: '/import-usa', component: AmericanImport },
+  { path: '/import-japonia', component: JapanImport },
 ]
 
 const router = createRouter({

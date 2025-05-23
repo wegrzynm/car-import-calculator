@@ -2,27 +2,27 @@
 import { ref, onMounted, computed } from 'vue'
 
 const date = new Date();
-const usdRate = ref(4);
+const jpyRate = ref(0.03);
 const eurRate = ref(4.2);
 let finalPrice = ref(0);
 let showResults = ref(false);
 let isLoading = ref(true);
 let ratesError = ref(false);
 
-const setUSDRate = async () => {
+const setJPYRate = async () => {
   try {
-    const usdResponse = await fetch('https://api.nbp.pl/api/exchangerates/rates/A/USD/?format=json');
-    if (!usdResponse.ok) {
-      throw new Error(`HTTP error! status: ${usdResponse.status}`);
+    const jpyResponse = await fetch('https://api.nbp.pl/api/exchangerates/rates/A/JPY/?format=json');
+    if (!jpyResponse.ok) {
+      throw new Error(`HTTP error! status: ${jpyResponse.status}`);
     }
-    const usdData = await usdResponse.json();
-    if (usdData.rates && usdData.rates.length > 0) {
-      usdRate.value = usdData.rates[0].mid;
+    const jpyData = await jpyResponse.json();
+    if (jpyData.rates && jpyData.rates.length > 0) {
+      jpyRate.value = jpyData.rates[0].mid;
     } else {
-      throw new Error('USD rate data not found.');
+      throw new Error('jpy rate data not found.');
     }
   } catch (error) {
-    console.error('Error fetching USD rate:', error);
+    console.error('Error fetching jpy rate:', error);
     ratesError.value = true;
   }
 }
@@ -45,11 +45,12 @@ const setEURRate = async () => {
   }
 }
 
-const UsaCost = ref({
-  priceUSD: 0,
-  auctionCostUSD: 0.075,
-  transportCostUSA: 1000,
-  shippingCost: 1000,
+const JpyCost = ref({
+  pricejpy: 0,
+  auctionCommissionJPY: 0.04,
+  fob: 65000 ,
+  transportOption: 1, //1 - RORO, 2 - Container
+  transportCost: 305000,
 });
 
 const EurCost = ref({
@@ -65,7 +66,7 @@ const Vehicle = ref({
 });
 
 const calculationDetails = ref({
-  cifUSD: 0,
+  cifjpy: 0,
   cifPLN: 0,
   cifEUR: 0,
   dutyAmount: 0,
@@ -73,11 +74,13 @@ const calculationDetails = ref({
   agencyFee: 0,
   tariffRate: 0,
   tariffAmount: 0,
-  shippingCostEu: 0
+  serviceFee: 0,
+  transportToPoland: 0
 });
 
 const calculateCIF = () => {
-  return UsaCost.value.priceUSD + (UsaCost.value.priceUSD * UsaCost.value.auctionCostUSD) + UsaCost.value.transportCostUSA + UsaCost.value.shippingCost;
+  let auctionCommissionJPY = JpyCost.value.pricejpy * JpyCost.value.auctionCommissionJPY;
+  return JpyCost.value.pricejpy + auctionCommissionJPY + JpyCost.value.fob + JpyCost.value.transportCost;
 }
 
 const calculateDutyRate = () => {
@@ -114,6 +117,30 @@ const selectTariff = () => {
   }
 };
 
+const calcualteTransportCost = () => {
+  if (JpyCost.value.transportOption == 1) {
+    return 305000;
+  }else if (JpyCost.value.transportOption == 2) {
+    return 105000;
+  }
+}
+
+const calculateServiceFee = (cif) => {
+  let commissionPln = 0;
+  if (JpyCost.value.pricejpy < 1000000) {
+    commissionPln = 3000
+  }else if (JpyCost.value.pricejpy < 2000000) {
+    commissionPln = cif * 0.1
+  }else if (JpyCost.value.pricejpy < 4000000) {
+    commissionPln = cif * 0.07
+  }else if (JpyCost.value.pricejpy < 6000000) {
+    commissionPln = cif * 0.05
+  }else {
+    commissionPln = 10000
+  } 
+  return commissionPln;
+};
+
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(value);
 }
@@ -121,13 +148,12 @@ const formatCurrency = (value) => {
 const handleForm = (e: Event) => {
   e.preventDefault();
   showResults.value = true;
-  
-  let cif = calculateCIF();
+  let transportCost = calcualteTransportCost();
   let dutyRate = calculateDutyRate();
   let tariffRate = selectTariff();
-  
-  // CIF from USD to PLN
-  let cifPLN = cif * usdRate.value;
+  let cif = calculateCIF();
+
+  let cifPLN = cif * jpyRate.value;
   let cifEUR = cifPLN / eurRate.value;
   let vehicleValueEUR = cifEUR * (1 + dutyRate);
   let vehicleValueForTariff = vehicleValueEUR * eurRate.value;
@@ -135,13 +161,13 @@ const handleForm = (e: Event) => {
   let vatAmount = (vehicleValueEUR * EurCost.value.VAT)*eurRate.value;
   let agencyFee = EurCost.value.dutyAgency;
   let tariffAmount = vehicleValueForTariff * tariffRate;
-  let shippingCostEu = 3500;
+  let serviceFee = calculateServiceFee(cifPLN); 
+  const transportToPoland = 3500; //PLN
   
-  finalPrice.value = Math.round((vehicleValueForTariff + vatAmount + agencyFee + tariffAmount + shippingCostEu) * 100) / 100;
+  finalPrice.value = Math.round((vehicleValueForTariff + vatAmount + agencyFee + tariffAmount+ serviceFee+ transportToPoland) * 100) / 100;
   
-  // Store calculation details for display
   calculationDetails.value = {
-    cifUSD: cif,
+    cifJPY: cif,
     cifPLN: cifPLN,
     cifEUR: cifEUR,
     dutyRate: dutyRate * 100,
@@ -150,12 +176,13 @@ const handleForm = (e: Event) => {
     agencyFee: agencyFee,
     tariffRate: tariffRate * 100,
     tariffAmount: tariffAmount,
-    shippingCostEu: shippingCostEu
+    serviceFee: serviceFee,
+    transportToPoland: transportToPoland
   };
 }
 
 const resetForm = () => {
-  UsaCost.value.priceUSD = 0;
+  JpyCost.value.pricejpy = 0;
   Vehicle.value.vehicleType = 1;
   Vehicle.value.engineType = 1;
   Vehicle.value.year = date.getFullYear();
@@ -165,7 +192,7 @@ const resetForm = () => {
 onMounted(async () => {
   try {
     await Promise.all([
-      setUSDRate(),
+      setJPYRate(),
       setEURRate()
     ]);
   } catch (error) {
@@ -177,14 +204,14 @@ onMounted(async () => {
 });
 
 const currentYear = computed(() => new Date().getFullYear());
-const currencyRatesInfo = computed(() => `USD: ${usdRate.value.toFixed(2)} PLN, EUR: ${eurRate.value.toFixed(2)} PLN`);
+const currencyRatesInfo = computed(() => `JPY: ${jpyRate.value.toFixed(3)} PLN, EUR: ${eurRate.value.toFixed(2)} PLN`);
 </script>
 
 <template>
   <div class="calculator-container">
     <div class="header">
-      <h1>Kalkulator importu pojazdu z USA</h1>
-      <p class="subtitle">Oblicz koszt importu samochodu lub motocykla z USA do Polski</p>
+      <h1>Kalkulator importu pojazdu z Japonii</h1>
+      <p class="subtitle">Oblicz koszt importu samochodu lub motocykla z Japonii do Polski</p>
       
       <div v-if="isLoading" class="loading-banner">
         <div class="spinner"></div>
@@ -208,22 +235,47 @@ const currencyRatesInfo = computed(() => `USD: ${usdRate.value.toFixed(2)} PLN, 
           
           <form @submit="handleForm" v-if="!showResults">
             <div class="form-group">
-              <label for="car-price-usd">Cena pojazdu</label>
-              <p class="form-hint">(wpisz kwotę w walucie USD)</p>
-              <div class="input-with-symbol">
-                <span class="currency-symbol">$</span>
-                <input 
-                  type="number" 
-                  name="car-price-usd" 
-                  id="car-price-usd"
-                  min="0" 
-                  v-model="UsaCost.priceUSD"
-                  required
-                  placeholder="0"
-                />
+              <label for="car-price-jpy">Kwota aukcji</label>
+              <p class="form-hint">(wpisz kwotę w walucie JPY)</p>
+              <input 
+                type="number" 
+                name="car-price-jpy" 
+                id="car-price-jpy"
+                min="0" 
+                v-model="JpyCost.pricejpy"
+                required
+                placeholder="0"
+              />
+            </div>
+            
+            <div class="form-group">
+              <label>Rok produkcji</label>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input type="radio" :value="1993" v-model="Vehicle.year" name="year"/>
+                  <span>do 1993</span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" :value="date.getFullYear()" v-model="Vehicle.year" name="year"/>
+                  <span>od 1994</span>
+                </label>
               </div>
             </div>
             
+            <div class="form-group">
+              <label>Rodzaj transportu</label>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input type="radio" value="1" name="transport-type" v-model="JpyCost.transportOption"/>
+                  <span>RoRo</span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" value="2" name="transport-type" v-model="JpyCost.transportOption"/>
+                  <span>Kontener</span>
+                </label>
+              </div>
+            </div>
+
             <div class="form-group">
               <label for="production-year">Rok produkcji</label>
               <input 
@@ -292,18 +344,22 @@ const currencyRatesInfo = computed(() => `USD: ${usdRate.value.toFixed(2)} PLN, 
           <div class="red-line"></div>
           
           <div class="cost-section">
-            <h3>Koszty w USA</h3>
+            <h3>Koszty w Japonii</h3>
             <div class="cost-item">
-              <span>Koszty transportu (do portu w USA):</span>
-              <span class="cost-value">${{ UsaCost.shippingCost.toFixed(2) }}</span>
+              <span>Prowizja domu aukcyjnego:</span>
+              <span class="cost-value">{{ (JpyCost.pricejpy * JpyCost.auctionCommissionJPY).toFixed(0) }} JPY</span>
             </div>
             <div class="cost-item">
-              <span>Koszty transportu (fracht morski):</span>
-              <span class="cost-value">${{ UsaCost.transportCostUSA.toFixed(2) }}</span>
+              <span>FOB - opłata administracyjna:</span>
+              <span class="cost-value">{{ JpyCost.fob }} JPY</span>
+            </div>
+            <div class="cost-item">
+              <span>Koszty transportu:</span>
+              <span class="cost-value">{{ JpyCost.transportCost }} JPY</span>
             </div>
             <div class="cost-item">
               <span>CIF (koszt, ubezpieczenie, fracht):</span>
-              <span class="cost-value">${{ calculationDetails.cifUSD.toFixed(2) }}</span>
+              <span class="cost-value"> {{ calculationDetails.cifJPY }} JPY</span>
             </div>
           </div>
           
@@ -318,7 +374,7 @@ const currencyRatesInfo = computed(() => `USD: ${usdRate.value.toFixed(2)} PLN, 
               <span class="cost-value">19% ({{ formatCurrency(calculationDetails.vatAmount) }})</span>
             </div>
             <div class="cost-item">
-              <span>Opłata agencyjna:</span>
+              <span>Koszty portowe:</span>
               <span class="cost-value">{{ calculationDetails.agencyFee }} EUR</span>
             </div>
           </div>
@@ -331,7 +387,11 @@ const currencyRatesInfo = computed(() => `USD: ${usdRate.value.toFixed(2)} PLN, 
             </div>
             <div class="cost-item">
               <span>Koszt dostawy na terenie PL:</span>
-              <span class="cost-value">{{ formatCurrency(calculationDetails.shippingCostEu) }}</span>
+              <span class="cost-value">{{ formatCurrency(calculationDetails.transportToPoland) }}</span>
+            </div>
+            <div class="cost-item">
+              <span>Prowizja serwisu:</span>
+              <span class="cost-value">{{ formatCurrency(calculationDetails.serviceFee) }}</span>
             </div>
           </div>
           
@@ -492,24 +552,23 @@ body {
   margin: 0.25rem 0 0.5rem 0;
 }
 
-.input-with-symbol {
+.radio-group {
   display: flex;
+  gap: 1.5rem;
   align-items: center;
 }
 
-.currency-symbol {
-  padding: 0.75rem;
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
-  border-right: none;
-  border-radius: 4px 0 0 4px;
-  font-weight: 600;
-  color: #333;
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: normal;
 }
 
-.input-with-symbol input {
-  border-left: none;
-  border-radius: 0 4px 4px 0;
+.radio-label input[type="radio"] {
+  width: auto;
+  margin: 0;
 }
 
 input[type="number"],
@@ -642,7 +701,7 @@ input[type="number"] {
 }
 
 .ad-container.slide-down {
-  max-height: 100px;
+  max-height: 100px; /* Adjust based on ad placeholder height */
 }
 
 .ad-placeholder {
