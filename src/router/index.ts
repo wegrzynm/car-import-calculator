@@ -1,6 +1,6 @@
 ﻿import { createWebHistory, createRouter } from 'vue-router'
 
-import HomeView from '../components/HelloWorld.vue'
+import HomeView from '../components/HomeView.vue';
 import AmericanImport from '../components/AmericanImport.vue';
 import JapanImport from '../components/JapanImport.vue';
 

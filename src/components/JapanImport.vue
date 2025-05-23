@@ -208,6 +208,9 @@ const currencyRatesInfo = computed(() => `JPY: ${jpyRate.value.toFixed(3)} PLN, 
 </script>
 
 <template>
+  <router-link to="/">
+    <button class="btn-calculate">Powrót na stronę główną</button>
+  </router-link>
   <div class="calculator-container">
     <div class="header">
       <h1>Kalkulator importu pojazdu z Japonii</h1>
