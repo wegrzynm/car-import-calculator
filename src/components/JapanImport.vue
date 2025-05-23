@@ -66,9 +66,10 @@ const Vehicle = ref({
 });
 
 const calculationDetails = ref({
-  cifjpy: 0,
+  cifJPY: 0,
   cifPLN: 0,
   cifEUR: 0,
+  dutyRate: 0,
   dutyAmount: 0,
   vatAmount: 0,
   agencyFee: 0,
@@ -97,7 +98,7 @@ const calculateDutyRate = () => {
 }
 
 const selectTariff = () => {
-  switch (parseInt(Vehicle.value.engineType)) {
+  switch (Vehicle.value.engineType) {
     case 1:
       return 0.031;
     case 2:
@@ -119,13 +120,13 @@ const selectTariff = () => {
 
 const calcualteTransportCost = () => {
   if (JpyCost.value.transportOption == 1) {
-    return 305000;
+    JpyCost.value.transportCost =  305000;
   }else if (JpyCost.value.transportOption == 2) {
-    return 105000;
+    JpyCost.value.transportCost = 105000;
   }
 }
 
-const calculateServiceFee = (cif) => {
+const calculateServiceFee = (cif: number) => {
   let commissionPln = 0;
   if (JpyCost.value.pricejpy < 1000000) {
     commissionPln = 3000
@@ -141,14 +142,14 @@ const calculateServiceFee = (cif) => {
   return commissionPln;
 };
 
-const formatCurrency = (value) => {
+const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(value);
 }
 
 const handleForm = (e: Event) => {
   e.preventDefault();
   showResults.value = true;
-  let transportCost = calcualteTransportCost();
+  calcualteTransportCost();
   let dutyRate = calculateDutyRate();
   let tariffRate = selectTariff();
   let cif = calculateCIF();

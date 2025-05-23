@@ -68,6 +68,7 @@ const calculationDetails = ref({
   cifUSD: 0,
   cifPLN: 0,
   cifEUR: 0,
+  dutyRate: 0,
   dutyAmount: 0,
   vatAmount: 0,
   agencyFee: 0,
@@ -94,7 +95,7 @@ const calculateDutyRate = () => {
 }
 
 const selectTariff = () => {
-  switch (parseInt(Vehicle.value.engineType)) {
+  switch (Vehicle.value.engineType) {
     case 1:
       return 0.031;
     case 2:
@@ -114,7 +115,7 @@ const selectTariff = () => {
   }
 };
 
-const formatCurrency = (value) => {
+const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(value);
 }
 
@@ -252,21 +253,21 @@ const currencyRatesInfo = computed(() => `USD: ${usdRate.value.toFixed(2)} PLN, 
               <label for="tariff">Typ silnika/akcyza</label>
               <select name="tariff" id="tariff" v-model="Vehicle.engineType">
                 <optgroup label="Spalinowe">
-                  <option value="1">Pojemność silnika do 2000 cm³: 3,1%</option>
-                  <option value="2">Pojemność silnika powyżej 2000 cm³: 18,6%</option>
+                  <option value=1>Pojemność silnika do 2000 cm³: 3,1%</option>
+                  <option value=2>Pojemność silnika powyżej 2000 cm³: 18,6%</option>
                 </optgroup>
                 <optgroup label="Hybrydowe">
-                  <option value="3">Pojemność silnika do 2000 cm³: 1,55%</option>
-                  <option value="4">Pojemność silnika powyżej 2000 cm³ (do 3500 cm³): 9,3%</option>
-                  <option value="5">Pojemność silnika powyżej 3500 cm³: 18.6%</option>
+                  <option value=3>Pojemność silnika do 2000 cm³: 1,55%</option>
+                  <option value=4>Pojemność silnika powyżej 2000 cm³ (do 3500 cm³): 9,3%</option>
+                  <option value=5>Pojemność silnika powyżej 3500 cm³: 18.6%</option>
                 </optgroup>
                 <optgroup label="Hybrydy Plug-In">
-                  <option value="6">Pojemność silnika do 2000 cm³: 0%</option>
-                  <option value="7">Pojemność silnika powyżej 2000 cm³ (do 3500 cm³): 9,3%</option>
-                  <option value="8">Pojemność silnika powyżej 3500 cm³: 18.6%</option>
+                  <option value=6>Pojemność silnika do 2000 cm³: 0%</option>
+                  <option value=7>Pojemność silnika powyżej 2000 cm³ (do 3500 cm³): 9,3%</option>
+                  <option value=8>Pojemność silnika powyżej 3500 cm³: 18.6%</option>
                 </optgroup>
                 <optgroup label="Elektryczne">
-                  <option value="9">Elektryczne: 0%</option>
+                  <option value=9>Elektryczne: 0%</option>
                 </optgroup>
               </select>
             </div>
