@@ -25,12 +25,12 @@ const toggleAd = () => {
           zapewnić precyzyjne wyliczenia. Wybierz kraj pochodzenia pojazdu i zacznij już teraz!
         </p>
         <div class="calculator-links">
-          <a href="/import-japonia" class="btn-calculate" @click="toggleAd">
+          <router-link to="/import-japonia" class="btn-calculate" @click="toggleAd">
             Kalkulator importu z Japonii
-          </a>
-          <a href="/import-usa" class="btn-calculate" @click="toggleAd">
+          </router-link>
+          <router-link to="/import-usa" class="btn-calculate" @click="toggleAd">
             Kalkulator importu z USA
-          </a>
+          </router-link>
         </div>
       </div>
     </div>
